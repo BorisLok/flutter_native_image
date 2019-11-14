@@ -39,6 +39,7 @@
             int widthArgument = [[_arguments objectForKey:@"targetWidth"] intValue];
             int heightArgument = [[_arguments objectForKey:@"targetHeight"] intValue];
             NSString *fileArgument = [_arguments objectForKey:@"file"];
+            NSString *ext = [fileArgument pathExtension];
             NSURL *uncompressedFileUrl = [NSURL URLWithString:fileArgument];
 
             NSString *fileName = [[fileArgument lastPathComponent] stringByDeletingPathExtension];
@@ -47,28 +48,41 @@
             NSString *finalFileName = [NSTemporaryDirectory() stringByAppendingPathComponent:tempFileName];
 
             NSString *path = [uncompressedFileUrl path];
-            NSData *data = [[NSFileManager defaultManager] contentsAtPath:path];
 
-            UIImage *img = [[UIImage alloc] initWithData:data];
+            UIImage *img = [UIImage imageWithContentsOfFile:path];
+
+            NSLog(@"Image Path: %@", path);
+            NSLog(@"Image Size: %f X %f", img.size.width, img.size.height);
 
             CGFloat newWidth = (widthArgument == 0 ? (img.size.width / 100 * percentageArgument) : widthArgument);
             CGFloat newHeight = (heightArgument == 0 ? (img.size.height / 100 * percentageArgument) : heightArgument);
 
             CGSize newSize = CGSizeMake(newWidth, newHeight);
 
-            UIImage *resizedImage = [img resizedImage:newSize interpolationQuality:kCGInterpolationHigh];
-            resizedImage = [self normalizedImage:resizedImage];
+            NSLog(@"new Size: %f X %f", newSize.width, newSize.height);
+
+            UIGraphicsBeginImageContextWithOptions(newSize, NO, 0.0);
+            [img drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
+            UIImage *resizedImage = UIGraphicsGetImageFromCurrentImageContext();
+            UIGraphicsEndImageContext();
+
+            NSLog(@"Resized Image Size: %f X %f", resizedImage.size.width, resizedImage.size.height);
+
             NSData *imageData = UIImageJPEGRepresentation(resizedImage, qualityArgument / 100.0);
+
+            NSLog(@"imageData: %d", imageData.length);
 
             dispatch_async(dispatch_get_main_queue(), ^(void){
                 //Run UI Updates
-                if ([[NSFileManager defaultManager] createFileAtPath:finalFileName contents:imageData attributes:nil]) {
+
+                if ([imageData writeToFile:finalFileName atomically:YES]) {
                     result(finalFileName);
                 } else {
                     result([FlutterError errorWithCode:@"create_error"
                                                message:@"Temporary file could not be created"
                                                details:nil]);
                 }
+
 
                 result(finalFileName);
                 return;
